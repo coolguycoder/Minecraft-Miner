@@ -1,1 +1,92 @@
 # Minecraft-Miner
+
+A Minecraft bot written in Go that can connect to a Minecraft server and respond to chat commands.
+
+## Features
+
+- **Auto-connect**: Automatically connects to the specified Minecraft server
+- **Initial Mining**: Upon joining, the bot mines the cobblestone block directly in front of it
+- **Chat Commands**:
+  - `!me` - Move to the player who issued the command and look at them
+  - `!mine` - Pick up thrown items and use them to mine blocks (sends "IT BROKEEEEE" when tool breaks)
+  - `!stop` - Gracefully disconnect from the server
+
+## Configuration
+
+The bot connects to the server with the following default settings (can be modified in `main.go`):
+- **Server**: `100.94.216.120:25565`
+- **Username**: `MINER`
+
+## Prerequisites
+
+- Go 1.24 or higher
+- Access to a Minecraft server (Java Edition, compatible with protocol version 764)
+
+## Building
+
+To build the bot:
+
+```bash
+go build -o minecraft-bot main.go
+```
+
+Or use:
+
+```bash
+go build
+```
+
+## Running
+
+To run the bot:
+
+```bash
+./minecraft-bot
+```
+
+Or directly with:
+
+```bash
+go run main.go
+```
+
+## Usage
+
+1. Start the bot with `./minecraft-bot`
+2. The bot will connect to the configured Minecraft server
+3. Once connected, it will automatically mine the cobblestone block in front of it
+4. Use chat commands in-game to control the bot:
+   - Type `!me` to make the bot move to you
+   - Type `!mine` to make the bot ready to pick up tools and mine with them
+   - Type `!stop` to gracefully shut down the bot
+
+## Dependencies
+
+This project uses:
+- [github.com/Tnze/go-mc](https://github.com/Tnze/go-mc) - Go library for Minecraft protocol
+
+Dependencies are managed via Go modules. Run `go mod tidy` to download them.
+
+## Development
+
+The bot is structured as follows:
+- **Connection handling**: Manages server connection and authentication
+- **Event handlers**: Responds to game events (joining, teleporting, health changes, etc.)
+- **Chat command parser**: Processes incoming chat messages for commands
+- **Packet handlers**: Sends and receives Minecraft protocol packets for actions
+
+## Notes
+
+- The `!me` command requires tracking other players' positions (partially implemented)
+- The `!mine` command requires item pickup tracking and durability monitoring (framework in place)
+- The bot uses the go-mc library which implements the Minecraft protocol
+- Graceful shutdown is handled via `!stop` command or SIGINT/SIGTERM signals
+
+## Logging
+
+The bot logs all activities to stdout, including:
+- Connection status
+- Game events
+- Chat messages received
+- Command execution
+- Errors and warnings
