@@ -20,6 +20,16 @@ import (
 const (
 	serverAddr = "100.94.216.120:25565"
 	username   = "MINER"
+
+	// Timing constants
+	worldLoadDelay  = 2 * time.Second     // Wait time for world to load after joining
+	basicMiningTime = 1 * time.Second     // Time to mine a block with bare hands
+	itemMiningTime  = 500 * time.Millisecond // Time to mine a block with a tool
+
+	// Minecraft protocol position encoding constants
+	// Position is encoded as: X (26 bits) << 38 | Z (26 bits) << 12 | Y (12 bits)
+	positionXZMask = 0x3FFFFFF // 26-bit mask for X and Z coordinates
+	positionYMask  = 0xFFF     // 12-bit mask for Y coordinate
 )
 
 var (
@@ -106,7 +116,7 @@ func onGameStart() error {
 	log.Println("Game started! Bot is now in the game.")
 
 	// Wait a moment for the world to load
-	time.Sleep(2 * time.Second)
+	time.Sleep(worldLoadDelay)
 
 	// Mine the cobblestone block directly in front
 	if !minedFirst {
@@ -199,7 +209,7 @@ func mineBlockInFront() {
 	}
 
 	// Wait for mining time
-	time.Sleep(1 * time.Second)
+	time.Sleep(basicMiningTime)
 
 	// Send finish digging packet
 	err = sendDigging(2, blockX, blockY, blockZ, 1) // Status 2 = finish digging
@@ -214,7 +224,7 @@ func mineBlockInFront() {
 // sendDigging sends a player digging packet
 func sendDigging(status int32, x, y, z int, face byte) error {
 	// Encode position as per Minecraft protocol
-	position := int64(x&0x3FFFFFF)<<38 | int64(z&0x3FFFFFF)<<12 | int64(y&0xFFF)
+	position := int64(x&positionXZMask)<<38 | int64(z&positionXZMask)<<12 | int64(y&positionYMask)
 
 	return client.Conn.WritePacket(pk.Marshal(
 		packetid.ServerboundPlayerAction,
@@ -312,7 +322,7 @@ func mineWithItem(x, y, z int) {
 	}
 
 	// Wait for mining
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(itemMiningTime)
 
 	// Finish digging
 	err = sendDigging(2, x, y, z, 1)
