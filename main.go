@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,6 +29,11 @@ const (
 	itemMiningTime  = 500 * time.Millisecond  // Time to mine a block with a tool
 	tickDuration    = 50 * time.Millisecond   // Duration of one Minecraft tick
 
+	// Mining simulation constants
+	armSwingInterval           = 10 // Ticks between arm swings
+	durabilityReductionInterval = 40 // Ticks between durability reductions (2 seconds)
+	durabilityReductionAmount   = 5  // Amount to reduce durability each interval
+
 	// Minecraft protocol position encoding constants
 	// Position is encoded as: X (26 bits) << 38 | Z (26 bits) << 12 | Y (12 bits)
 	positionXZMask = 0x3FFFFFF // 26-bit mask for X and Z coordinates
@@ -38,6 +44,7 @@ var (
 	client        *bot.Client
 	player        *basic.Player
 	shouldStop    bool
+	shouldStopMutex sync.RWMutex // Protects shouldStop variable
 	minedFirst    bool
 	miningItem    int32 = -1  // Current slot holding mining item
 	itemDurability int  = 100 // Current item durability (0-100)
@@ -47,6 +54,7 @@ var (
 	playerZ       float64
 	playerYaw     float32
 	playerPitch   float32
+	miningMutex   sync.Mutex // Protects mining-related variables
 )
 
 func main() {
@@ -90,7 +98,9 @@ func main() {
 	go func() {
 		<-sigCh
 		log.Println("Received interrupt signal, shutting down...")
+		shouldStopMutex.Lock()
 		shouldStop = true
+		shouldStopMutex.Unlock()
 		if client.Conn != nil {
 			client.Conn.Close()
 		}
@@ -116,7 +126,7 @@ func main() {
 		}
 	}()
 
-	// Wait for shutdown signal
+	// Wait for shutdown signal (blocks indefinitely until interrupted)
 	select {}
 }
 
@@ -182,18 +192,25 @@ func handleChatPacket(p pk.Packet) error {
 	msgText := msg.String()
 	log.Printf("Chat message: %s", msgText)
 
-	// Parse chat commands with better string matching
-	msgLower := strings.ToLower(strings.TrimSpace(msgText))
+	// Parse chat commands by checking for exact command words
+	msgLower := strings.ToLower(msgText)
+	words := strings.Fields(msgLower)
 	
-	if strings.Contains(msgLower, "!stop") {
-		log.Println("Received !stop command")
-		go handleStopCommand()
-	} else if strings.Contains(msgLower, "!mine") {
-		log.Println("Received !mine command")
-		go handleMineCommand()
-	} else if strings.Contains(msgLower, "!me") {
-		log.Println("Received !me command")
-		go handleMeCommand(msgText)
+	for _, word := range words {
+		switch word {
+		case "!stop":
+			log.Println("Received !stop command")
+			go handleStopCommand()
+			return nil
+		case "!mine":
+			log.Println("Received !mine command")
+			go handleMineCommand()
+			return nil
+		case "!me":
+			log.Println("Received !me command")
+			go handleMeCommand(msgText)
+			return nil
+		}
 	}
 
 	return nil
@@ -268,9 +285,11 @@ func handleMineCommand() {
 
 	sendChatMessage("Starting mining simulation!")
 
-	// Reset mining state
+	// Reset mining state with thread-safe access
+	miningMutex.Lock()
 	itemDurability = 100
 	miningTicks = 0
+	miningMutex.Unlock()
 
 	// Start simulated mining
 	go simulateMining()
@@ -284,7 +303,10 @@ func handleStopCommand() {
 
 	time.Sleep(1 * time.Second)
 
+	shouldStopMutex.Lock()
 	shouldStop = true
+	shouldStopMutex.Unlock()
+	
 	if client.Conn != nil {
 		client.Conn.Close()
 	}
@@ -307,8 +329,8 @@ func sendChatMessage(message string) {
 		pk.String(message),
 		pk.Long(timestamp),
 		pk.Long(0),          // Salt
-		pk.ByteArray(nil),   // Signature (empty)
-		pk.Boolean(false),   // No signature
+		pk.ByteArray(nil),   // Signature (empty array)
+		pk.Boolean(false),   // Has signature (false)
 	))
 	if err != nil {
 		log.Printf("Failed to send chat message: %v", err)
@@ -350,24 +372,44 @@ func simulateMining() {
 	blockY := int(math.Floor(playerY))
 	blockZ := int(math.Floor(playerZ + 1))
 
-	for itemDurability > 0 && !shouldStop {
-		miningTicks++
+	for {
+		// Check stop condition with thread-safe access
+		shouldStopMutex.RLock()
+		stopping := shouldStop
+		shouldStopMutex.RUnlock()
+		
+		if stopping {
+			break
+		}
 
-		// Swing arm every 10 ticks for visual feedback
-		if miningTicks%10 == 0 {
+		miningMutex.Lock()
+		currentDurability := itemDurability
+		currentTicks := miningTicks
+		miningTicks++
+		miningMutex.Unlock()
+
+		if currentDurability <= 0 {
+			break
+		}
+
+		// Swing arm at regular intervals for visual feedback
+		if currentTicks%armSwingInterval == 0 {
 			err := sendSwingArm()
 			if err != nil {
 				log.Printf("Error swinging arm: %v", err)
 			}
 		}
 
-		// Reduce durability every 40 ticks (2 seconds)
-		if miningTicks%40 == 0 {
-			itemDurability -= 5
-			log.Printf("Mining... Durability: %d%%", itemDurability)
+		// Reduce durability at regular intervals
+		if currentTicks%durabilityReductionInterval == 0 {
+			miningMutex.Lock()
+			itemDurability -= durabilityReductionAmount
+			newDurability := itemDurability
+			miningMutex.Unlock()
 
-			if itemDurability <= 0 {
-				itemDurability = 0
+			log.Printf("Mining... Durability: %d%%", newDurability)
+
+			if newDurability <= 0 {
 				log.Println("Tool broke!")
 				sendChatMessage("IT BROKEEEEE")
 				break
