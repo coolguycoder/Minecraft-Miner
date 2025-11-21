@@ -23,15 +23,15 @@ const (
 )
 
 var (
-	client     *bot.Client
-	player     *basic.Player
-	shouldStop bool
-	minedFirst bool
-	miningItem int32 = -1 // Current slot holding mining item
-	playerX    float64
-	playerY    float64
-	playerZ    float64
-	playerYaw  float32
+	client      *bot.Client
+	player      *basic.Player
+	shouldStop  bool
+	minedFirst  bool
+	miningItem  int32 = -1 // Current slot holding mining item
+	playerX     float64
+	playerY     float64
+	playerZ     float64
+	playerYaw   float32
 	playerPitch float32
 )
 
@@ -139,14 +139,14 @@ func onDeath() error {
 // onTeleported is called when the player is teleported
 func onTeleported(x, y, z float64, yaw, pitch float32, flags byte, teleportID int32) error {
 	log.Printf("Teleported to: X=%.2f, Y=%.2f, Z=%.2f, Yaw=%.2f, Pitch=%.2f", x, y, z, yaw, pitch)
-	
+
 	// Update tracked position
 	playerX = x
 	playerY = y
 	playerZ = z
 	playerYaw = yaw
 	playerPitch = pitch
-	
+
 	// Confirm teleportation
 	return player.AcceptTeleportation(pk.VarInt(teleportID))
 }
@@ -154,7 +154,7 @@ func onTeleported(x, y, z float64, yaw, pitch float32, flags byte, teleportID in
 // handleChatPacket processes incoming chat messages
 func handleChatPacket(p pk.Packet) error {
 	var msg chat.Message
-	
+
 	// Try to decode the chat message
 	if err := p.Scan(&msg); err != nil {
 		return fmt.Errorf("failed to parse chat message: %w", err)
@@ -186,7 +186,7 @@ func mineBlockInFront() {
 	// Calculate block position in front (1 block forward based on yaw)
 	// Assuming the bot is facing a specific direction, let's just mine the block at feet level + 0
 	blockX := int(math.Floor(playerX))
-	blockY := int(math.Floor(playerY)) 
+	blockY := int(math.Floor(playerY))
 	blockZ := int(math.Floor(playerZ + 1)) // Block in front
 
 	log.Printf("Attempting to mine block at position: (%d, %d, %d)", blockX, blockY, blockZ)
@@ -215,7 +215,7 @@ func mineBlockInFront() {
 func sendDigging(status int32, x, y, z int, face byte) error {
 	// Encode position as per Minecraft protocol
 	position := int64(x&0x3FFFFFF)<<38 | int64(z&0x3FFFFFF)<<12 | int64(y&0xFFF)
-	
+
 	return client.Conn.WritePacket(pk.Marshal(
 		packetid.ServerboundPlayerAction,
 		pk.VarInt(status),
