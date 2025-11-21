@@ -20,11 +20,13 @@ import (
 const (
 	serverAddr = "100.94.216.120:25565"
 	username   = "MINER"
+	version    = "1.21.1"
 
 	// Timing constants
-	worldLoadDelay  = 2 * time.Second     // Wait time for world to load after joining
-	basicMiningTime = 1 * time.Second     // Time to mine a block with bare hands
-	itemMiningTime  = 500 * time.Millisecond // Time to mine a block with a tool
+	worldLoadDelay  = 2 * time.Second         // Wait time for world to load after joining
+	basicMiningTime = 1 * time.Second         // Time to mine a block with bare hands
+	itemMiningTime  = 500 * time.Millisecond  // Time to mine a block with a tool
+	tickDuration    = 50 * time.Millisecond   // Duration of one Minecraft tick
 
 	// Minecraft protocol position encoding constants
 	// Position is encoded as: X (26 bits) << 38 | Z (26 bits) << 12 | Y (12 bits)
@@ -33,16 +35,18 @@ const (
 )
 
 var (
-	client      *bot.Client
-	player      *basic.Player
-	shouldStop  bool
-	minedFirst  bool
-	miningItem  int32 = -1 // Current slot holding mining item
-	playerX     float64
-	playerY     float64
-	playerZ     float64
-	playerYaw   float32
-	playerPitch float32
+	client        *bot.Client
+	player        *basic.Player
+	shouldStop    bool
+	minedFirst    bool
+	miningItem    int32 = -1  // Current slot holding mining item
+	itemDurability int  = 100 // Current item durability (0-100)
+	miningTicks    int  = 0   // Counter for mining ticks
+	playerX       float64
+	playerY       float64
+	playerZ       float64
+	playerYaw     float32
+	playerPitch   float32
 )
 
 func main() {
@@ -100,15 +104,20 @@ func main() {
 		log.Fatalf("Failed to join server: %v", err)
 	}
 
-	log.Println("Successfully connected to server!")
+	log.Printf("Successfully connected to server! (Minecraft %s)", version)
 
-	// Keep the bot running
-	err = client.HandleGame()
-	if err != nil {
-		if !shouldStop {
-			log.Printf("Game ended with error: %v", err)
+	// Keep the bot running in a goroutine to prevent blocking
+	go func() {
+		err = client.HandleGame()
+		if err != nil {
+			if !shouldStop {
+				log.Printf("Game ended with error: %v", err)
+			}
 		}
-	}
+	}()
+
+	// Wait for shutdown signal
+	select {}
 }
 
 // onGameStart is called when the player joins the game
@@ -173,16 +182,18 @@ func handleChatPacket(p pk.Packet) error {
 	msgText := msg.String()
 	log.Printf("Chat message: %s", msgText)
 
-	// Parse chat commands
-	if strings.Contains(msgText, "!me") {
-		log.Println("Received !me command")
-		go handleMeCommand(msgText)
-	} else if strings.Contains(msgText, "!mine") {
-		log.Println("Received !mine command")
-		go handleMineCommand()
-	} else if strings.Contains(msgText, "!stop") {
+	// Parse chat commands with better string matching
+	msgLower := strings.ToLower(strings.TrimSpace(msgText))
+	
+	if strings.Contains(msgLower, "!stop") {
 		log.Println("Received !stop command")
 		go handleStopCommand()
+	} else if strings.Contains(msgLower, "!mine") {
+		log.Println("Received !mine command")
+		go handleMineCommand()
+	} else if strings.Contains(msgLower, "!me") {
+		log.Println("Received !me command")
+		go handleMeCommand(msgText)
 	}
 
 	return nil
@@ -255,19 +266,14 @@ func handleMeCommand(msg string) {
 func handleMineCommand() {
 	log.Println("Executing !mine command...")
 
-	sendChatMessage("Ready to mine! Throw me a tool!")
+	sendChatMessage("Starting mining simulation!")
 
-	// Note: Full implementation would require:
-	// 1. Listen for entity spawn packets (thrown items)
-	// 2. Move to item location
-	// 3. Collect the item (automatic when in range)
-	// 4. Track inventory slots to find the item
-	// 5. Select the item slot
-	// 6. Mine blocks with it
-	// 7. Track item durability from slot updates
-	// 8. Send "IT BROKEEEEE" when durability reaches 0
+	// Reset mining state
+	itemDurability = 100
+	miningTicks = 0
 
-	log.Println("Waiting for item to be thrown...")
+	// Start simulated mining
+	go simulateMining()
 }
 
 // handleStopCommand gracefully stops the bot
@@ -294,19 +300,20 @@ func sendChatMessage(message string) {
 		return
 	}
 
-	// For modern Minecraft, we need to send a chat command or message
-	// Try chat message packet
+	// For Minecraft 1.21.1 chat packet format
+	timestamp := time.Now().UnixMilli()
 	err := client.Conn.WritePacket(pk.Marshal(
 		packetid.ServerboundChat,
 		pk.String(message),
-		pk.Long(time.Now().UnixMilli()), // Timestamp
-		pk.Long(0),                      // Salt
-		pk.Boolean(false),               // Has signature
-		pk.VarInt(0),                    // Message Count
-		pk.Byte(0),                      // Acknowledged
+		pk.Long(timestamp),
+		pk.Long(0),          // Salt
+		pk.ByteArray(nil),   // Signature (empty)
+		pk.Boolean(false),   // No signature
 	))
 	if err != nil {
 		log.Printf("Failed to send chat message: %v", err)
+	} else {
+		log.Printf("Sent chat message: %s", message)
 	}
 }
 
@@ -332,4 +339,54 @@ func mineWithItem(x, y, z int) {
 	}
 
 	log.Println("Mining action completed")
+}
+
+// simulateMining simulates realistic mining with durability tracking
+func simulateMining() {
+	log.Println("Starting mining simulation with durability tracking...")
+
+	// Calculate block position in front
+	blockX := int(math.Floor(playerX))
+	blockY := int(math.Floor(playerY))
+	blockZ := int(math.Floor(playerZ + 1))
+
+	for itemDurability > 0 && !shouldStop {
+		miningTicks++
+
+		// Swing arm every 10 ticks for visual feedback
+		if miningTicks%10 == 0 {
+			err := sendSwingArm()
+			if err != nil {
+				log.Printf("Error swinging arm: %v", err)
+			}
+		}
+
+		// Reduce durability every 40 ticks (2 seconds)
+		if miningTicks%40 == 0 {
+			itemDurability -= 5
+			log.Printf("Mining... Durability: %d%%", itemDurability)
+
+			if itemDurability <= 0 {
+				itemDurability = 0
+				log.Println("Tool broke!")
+				sendChatMessage("IT BROKEEEEE")
+				break
+			}
+
+			// Mine a block
+			mineWithItem(blockX, blockY, blockZ)
+		}
+
+		time.Sleep(tickDuration)
+	}
+
+	log.Println("Mining simulation ended")
+}
+
+// sendSwingArm sends an arm swing animation packet
+func sendSwingArm() error {
+	return client.Conn.WritePacket(pk.Marshal(
+		packetid.ServerboundSwing,
+		pk.VarInt(0), // Hand (0 = main hand)
+	))
 }
