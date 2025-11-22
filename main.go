@@ -117,7 +117,8 @@ func main() {
 		}
 	}()
 
-	// Keep the main thread running
+	// Keep the main thread running until interrupted
+	// Signal handler above will call os.Exit(0) for graceful shutdown
 	select {}
 }
 
@@ -219,25 +220,8 @@ func mineBlockInFront() {
 		return
 	}
 
-	// Realistic mining simulation with ticks
-	miningTicks = 0
-	for miningTicks < miningTickCount {
-		time.Sleep(tickDuration)
-		miningTicks++
-
-		// Send arm swing animation every 10 ticks
-		if miningTicks%swingInterval == 0 {
-			err := sendArmSwing()
-			if err != nil {
-				log.Printf("⚠️ Error sending arm swing: %v", err)
-			}
-		}
-
-		// Show progress every 10 ticks
-		if miningTicks%swingInterval == 0 {
-			log.Printf("⛏️ Mining progress: %d/%d ticks", miningTicks, miningTickCount)
-		}
-	}
+	// Perform realistic mining simulation
+	simulateMining()
 
 	// Send finish digging packet
 	err = sendDigging(2, blockX, blockY, blockZ, 1) // Status 2 = finish digging
@@ -279,6 +263,28 @@ func sendArmSwing() error {
 		packetid.ServerboundSwing,
 		pk.VarInt(0), // Main hand
 	))
+}
+
+// simulateMining simulates realistic mining with ticks and arm swings
+func simulateMining() {
+	miningTicks = 0
+	for miningTicks < miningTickCount {
+		time.Sleep(tickDuration)
+		miningTicks++
+
+		// Send arm swing animation every 10 ticks
+		if miningTicks%swingInterval == 0 {
+			err := sendArmSwing()
+			if err != nil {
+				log.Printf("⚠️ Error sending arm swing: %v", err)
+			}
+		}
+
+		// Show progress every 20 ticks
+		if miningTicks%(swingInterval*2) == 0 {
+			log.Printf("⛏️ Mining progress: %d/%d ticks", miningTicks, miningTickCount)
+		}
+	}
 }
 
 // handleMeCommand moves the bot to the player who issued the command
@@ -367,20 +373,8 @@ func mineWithItem(x, y, z int) {
 		return
 	}
 
-	// Realistic mining simulation with ticks
-	miningTicks = 0
-	for miningTicks < miningTickCount {
-		time.Sleep(tickDuration)
-		miningTicks++
-
-		// Send arm swing animation every 10 ticks
-		if miningTicks%swingInterval == 0 {
-			err := sendArmSwing()
-			if err != nil {
-				log.Printf("⚠️ Error sending arm swing: %v", err)
-			}
-		}
-	}
+	// Perform realistic mining simulation
+	simulateMining()
 
 	// Finish digging
 	err = sendDigging(2, x, y, z, 1)
