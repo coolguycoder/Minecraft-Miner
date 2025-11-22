@@ -3,8 +3,32 @@
 # Minecraft 1.21.10 Protocol Fix Script
 # This script automatically finds and applies the correct protocol version
 # for connecting to Minecraft 1.21.10 servers
+#
+# Usage: ./fix-protocol.sh [--help]
 
 set -e  # Exit on error
+
+# Show help if requested
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "Minecraft 1.21.10 Protocol Fix Script"
+    echo ""
+    echo "This script automatically finds and applies the correct protocol version"
+    echo "for connecting to Minecraft 1.21.10 servers."
+    echo ""
+    echo "Usage: ./fix-protocol.sh"
+    echo ""
+    echo "The script will:"
+    echo "  1. Clone the go-mc library locally to ./go-mc-local"
+    echo "  2. Test multiple protocol versions (768, 769, 770, 771, 766)"
+    echo "  3. Find the working protocol version"
+    echo "  4. Update go.mod with a replace directive"
+    echo "  5. Save the result to .protocol-version"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h    Show this help message"
+    echo ""
+    exit 0
+fi
 
 # Configuration
 GOMC_DIR="./go-mc-local"
@@ -29,6 +53,17 @@ NC='\033[0m' # No Color
 echo "🔧 Minecraft 1.21.10 Protocol Fix Script"
 echo "========================================"
 echo ""
+
+# Check for required tools
+if ! command -v git &> /dev/null; then
+    print_error "Git is not installed. Please install git and try again."
+    exit 1
+fi
+
+if ! command -v go &> /dev/null; then
+    print_error "Go is not installed. Please install Go and try again."
+    exit 1
+fi
 
 # Function to print colored messages
 print_success() {
@@ -154,8 +189,17 @@ for PROTOCOL in "${PROTOCOL_VERSIONS[@]}"; do
     
     # Build the bot
     echo "   🔨 Building bot..."
-    if timeout $BUILD_TIMEOUT go build -o minecraft-bot main.go 2>&1 | grep -i "error"; then
+    
+    # Clean any previous build
+    rm -f minecraft-bot
+    
+    # Build with timeout
+    BUILD_OUTPUT=$(timeout $BUILD_TIMEOUT go build -o minecraft-bot main.go 2>&1)
+    BUILD_EXIT=$?
+    
+    if [ $BUILD_EXIT -ne 0 ]; then
         print_error "Build failed with protocol $PROTOCOL"
+        echo "$BUILD_OUTPUT" | head -5 | sed 's/^/   /'
         continue
     fi
     
@@ -171,39 +215,46 @@ for PROTOCOL in "${PROTOCOL_VERSIONS[@]}"; do
     
     # Run bot with timeout and capture output
     # The bot will fail if protocol is wrong
-    timeout $CONNECT_TIMEOUT ./minecraft-bot > /tmp/bot_test.log 2>&1 &
+    timeout $CONNECT_TIMEOUT ./minecraft-bot > /tmp/bot_test_${PROTOCOL}.log 2>&1 &
     BOT_PID=$!
     
     # Wait for the timeout or process to finish
     sleep $CONNECT_TIMEOUT
     
     # Check the output
-    if grep -q "Successfully connected to server" /tmp/bot_test.log; then
+    if grep -q "Successfully connected to server" /tmp/bot_test_${PROTOCOL}.log; then
         print_success "SUCCESS! Connected with protocol $PROTOCOL"
         WORKING_PROTOCOL=$PROTOCOL
         
-        # Kill the bot
-        kill $BOT_PID 2>/dev/null || true
+        # Kill the bot gracefully
+        kill -SIGTERM $BOT_PID 2>/dev/null || true
+        sleep 1
+        kill -9 $BOT_PID 2>/dev/null || true
         wait $BOT_PID 2>/dev/null || true
         
         break
-    elif grep -q "Incompatible client" /tmp/bot_test.log; then
+    elif grep -q "Incompatible client" /tmp/bot_test_${PROTOCOL}.log; then
         print_error "Failed with protocol $PROTOCOL (Incompatible client)"
-        kill $BOT_PID 2>/dev/null || true
+        kill -9 $BOT_PID 2>/dev/null || true
         wait $BOT_PID 2>/dev/null || true
-    elif grep -q "Failed to join server" /tmp/bot_test.log; then
+    elif grep -q "Failed to join server" /tmp/bot_test_${PROTOCOL}.log; then
         print_error "Failed with protocol $PROTOCOL (Connection error)"
-        kill $BOT_PID 2>/dev/null || true
+        # Show the actual error
+        grep "Failed to join server" /tmp/bot_test_${PROTOCOL}.log | head -1
+        kill -9 $BOT_PID 2>/dev/null || true
         wait $BOT_PID 2>/dev/null || true
     else
         print_warning "Unknown result with protocol $PROTOCOL"
-        kill $BOT_PID 2>/dev/null || true
+        # Show last few lines for debugging
+        echo "   Last output:"
+        tail -3 /tmp/bot_test_${PROTOCOL}.log | sed 's/^/   /'
+        kill -9 $BOT_PID 2>/dev/null || true
         wait $BOT_PID 2>/dev/null || true
     fi
 done
 
-# Clean up
-rm -f /tmp/bot_test.log
+# Clean up test logs
+rm -f /tmp/bot_test_*.log
 
 # Step 5: Report results
 echo ""
