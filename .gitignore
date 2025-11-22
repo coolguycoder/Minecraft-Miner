@@ -27,6 +27,7 @@ go-mc-local/
 
 # Protocol version tracking
 .protocol-version
+.protocol-attempts
 protocol-test.log
 
 # Backup files
