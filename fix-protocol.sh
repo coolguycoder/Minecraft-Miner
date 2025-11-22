@@ -32,8 +32,8 @@ NC='\033[0m' # No Color
 FORCE_MODE=false
 CLEAN_MODE=false
 
-for arg in "$@"; do
-    case $arg in
+while [[ $# -gt 0 ]]; do
+    case $1 in
         --force)
             FORCE_MODE=true
             shift
@@ -53,7 +53,7 @@ for arg in "$@"; do
             exit 0
             ;;
         *)
-            echo "Unknown option: $arg"
+            echo "Unknown option: $1"
             echo "Use --help for usage information"
             exit 1
             ;;
@@ -260,7 +260,7 @@ for PROTOCOL in "${PROTOCOL_VERSIONS[@]}"; do
     
     # Run go mod tidy
     info "Running go mod tidy..."
-    if go mod tidy 2>&1 | tee -a "$TEST_LOG" | grep -i "error"; then
+    if ! go mod tidy 2>&1 | tee -a "$TEST_LOG"; then
         error "go mod tidy failed"
         echo "" >> "$TEST_LOG"
         continue
