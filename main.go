@@ -19,7 +19,7 @@ import (
 
 const (
 	version         = "1.21.10"              // Minecraft Java Edition version
-	protocolVersion = 768                    // Protocol version for Minecraft 1.21.10 (1.21.2-1.21.4 use 768)
+	protocolVersion = 768                    // Protocol 768 supports MC 1.21.2-1.21.4 and 1.21.10
 	serverAddr      = "100.94.216.120:25565"
 	username        = "MINER"
 
