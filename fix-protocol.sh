@@ -235,8 +235,8 @@ echo ""
 if [ -f "$PING_TOOL" ]; then
     info "Running ping tool on $SERVER_ADDR..."
     
-    # Run the ping tool and capture output
-    PING_OUTPUT=$(go run "$PING_TOOL" "$SERVER_ADDR" 2>&1 || true)
+    # Run the ping tool with a timeout (10 seconds)
+    PING_OUTPUT=$(timeout 10 go run "$PING_TOOL" "$SERVER_ADDR" 2>&1 || true)
     
     verbose "Ping output: $PING_OUTPUT"
     
