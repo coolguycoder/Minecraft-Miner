@@ -21,3 +21,12 @@ go.work
 Minecraft-Miner
 minecraft-bot
 main
+
+# Local go-mc library clone for protocol fixes
+go-mc-local/
+
+# Protocol version tracking
+.protocol-version
+
+# Backup files
+*.backup

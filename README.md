@@ -28,6 +28,24 @@ The bot connects to the server with the following default settings (can be modif
 
 - Go 1.24 or higher
 - Access to a Minecraft server (Java Edition 1.21.10 or compatible)
+- Git (for cloning the go-mc library locally if protocol fix is needed)
+
+## Protocol Version Fix
+
+If you encounter the error "Incompatible client! Please use 1.21.10", you need to fix the protocol version mismatch:
+
+```bash
+./fix-protocol.sh
+```
+
+This script will:
+- Clone the go-mc library locally to `./go-mc-local`
+- Test multiple protocol versions (768, 769, 770, 771, 766) automatically
+- Find the correct protocol version for Minecraft 1.21.10
+- Update your configuration to use the working protocol version
+- Save the result to `.protocol-version` for future reference
+
+The script is idempotent and can be run multiple times safely.
 
 ## Version Compatibility
 
