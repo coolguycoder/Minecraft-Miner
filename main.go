@@ -180,6 +180,17 @@ func onTeleported(x, y, z float64, yaw, pitch float32, flags byte, teleportID in
 	return player.AcceptTeleportation(pk.VarInt(teleportID))
 }
 
+// isCommand checks if a command word appears as a standalone word in the message
+func isCommand(message, command string) bool {
+	words := strings.Fields(message)
+	for _, word := range words {
+		if word == command {
+			return true
+		}
+	}
+	return false
+}
+
 // handleChatPacket processes incoming chat messages
 func handleChatPacket(p pk.Packet) error {
 	var msg chat.Message
@@ -194,23 +205,22 @@ func handleChatPacket(p pk.Packet) error {
 
 	// Parse chat commands by checking for exact command words
 	msgLower := strings.ToLower(msgText)
-	words := strings.Fields(msgLower)
 	
-	for _, word := range words {
-		switch word {
-		case "!stop":
-			log.Println("Received !stop command")
-			go handleStopCommand()
-			return nil
-		case "!mine":
-			log.Println("Received !mine command")
-			go handleMineCommand()
-			return nil
-		case "!me":
-			log.Println("Received !me command")
-			go handleMeCommand(msgText)
-			return nil
-		}
+	// Check for commands with word boundaries
+	if strings.Contains(msgLower, "!stop") && isCommand(msgLower, "!stop") {
+		log.Println("Received !stop command")
+		go handleStopCommand()
+		return nil
+	}
+	if strings.Contains(msgLower, "!mine") && isCommand(msgLower, "!mine") {
+		log.Println("Received !mine command")
+		go handleMineCommand()
+		return nil
+	}
+	if strings.Contains(msgLower, "!me") && isCommand(msgLower, "!me") {
+		log.Println("Received !me command")
+		go handleMeCommand(msgText)
+		return nil
 	}
 
 	return nil
@@ -382,15 +392,16 @@ func simulateMining() {
 			break
 		}
 
+		// Get current mining state atomically
 		miningMutex.Lock()
 		currentDurability := itemDurability
+		if currentDurability <= 0 {
+			miningMutex.Unlock()
+			break
+		}
 		currentTicks := miningTicks
 		miningTicks++
 		miningMutex.Unlock()
-
-		if currentDurability <= 0 {
-			break
-		}
 
 		// Swing arm at regular intervals for visual feedback
 		if currentTicks%armSwingInterval == 0 {
@@ -405,11 +416,12 @@ func simulateMining() {
 			miningMutex.Lock()
 			itemDurability -= durabilityReductionAmount
 			newDurability := itemDurability
+			shouldBreak := newDurability <= 0
 			miningMutex.Unlock()
 
 			log.Printf("Mining... Durability: %d%%", newDurability)
 
-			if newDurability <= 0 {
+			if shouldBreak {
 				log.Println("Tool broke!")
 				sendChatMessage("IT BROKEEEEE")
 				break
