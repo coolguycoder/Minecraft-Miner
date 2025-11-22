@@ -30,22 +30,55 @@ The bot connects to the server with the following default settings (can be modif
 - Access to a Minecraft server (Java Edition 1.21.10 or compatible)
 - Git (for cloning the go-mc library locally if protocol fix is needed)
 
-## Protocol Version Fix
+## Protocol Version Fix (Minecraft 1.21.10)
 
-If you encounter the error "Incompatible client! Please use 1.21.10", you need to fix the protocol version mismatch:
+If you encounter the error "Incompatible client! Please use 1.21.10", you need to fix the protocol version mismatch. This happens because the upstream `go-mc` library hardcodes a protocol version that may not match your server's expected version.
 
+### Why This Script Is Needed
+
+The upstream go-mc library is not yet updated to support Minecraft 1.21.10's specific protocol version. Until upstream support lands, we use this script to automatically detect and patch the correct protocol version locally.
+
+### Usage
+
+**Initial run** (automatically detects the correct protocol version):
 ```bash
 ./fix-protocol.sh
 ```
 
-This script will:
-- Clone the go-mc library locally to `./go-mc-local`
-- Test multiple protocol versions (768, 769, 770, 771, 766) automatically
-- Find the correct protocol version for Minecraft 1.21.10
-- Update your configuration to use the working protocol version
-- Save the result to `.protocol-version` for future reference
+**Force re-run** (redo tests even if a protocol version was previously found):
+```bash
+./fix-protocol.sh --force
+```
 
-The script is idempotent and can be run multiple times safely.
+**Clean reset** (remove all local modifications and start fresh):
+```bash
+./fix-protocol.sh --clean
+```
+
+**Show discovered protocol version:**
+```bash
+cat .protocol-version
+```
+
+### What The Script Does
+
+1. Performs sanity checks (verifies Go is installed and main.go exists)
+2. Clones the go-mc library locally to `./go-mc-local` (if not already present)
+3. Tests multiple protocol versions (768, 769, 770, 771, 766) automatically
+4. For each version:
+   - Patches the `ProtocolVersion` constant in `go-mc-local/bot/mcbot.go`
+   - Updates `go.mod` with a replace directive (idempotent)
+   - Runs `go mod tidy`
+   - Builds the bot binary
+   - Tests connection to the server
+5. Saves the working protocol version to `.protocol-version`
+6. Creates a backup of your original `go.mod` at `go.mod.backup`
+
+The script is idempotent and safe to run multiple times.
+
+### Future TODO
+
+When the upstream go-mc library officially supports Minecraft 1.21.10, this script and the local modifications can be removed. Monitor the [go-mc repository](https://github.com/Tnze/go-mc) for updates.
 
 ## Version Compatibility
 
