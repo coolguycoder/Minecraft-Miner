@@ -1,15 +1,20 @@
 # Minecraft-Miner
 
-A Minecraft bot written in Go that can connect to a Minecraft server and respond to chat commands.
+A Minecraft bot written in Go that can connect to a Minecraft Java Edition 1.21.10 server and respond to chat commands.
 
 ## Features
 
-- **Auto-connect**: Automatically connects to the specified Minecraft server
-- **Initial Mining**: Upon joining, the bot mines the cobblestone block directly in front of it
-- **Chat Commands**:
+- **Auto-connect**: Automatically connects to the specified Minecraft Java Edition 1.21.10 server
+- **Initial Mining**: Upon joining, the bot mines the cobblestone block directly in front of it with realistic mining simulation
+  - 40 ticks (2 seconds) mining time
+  - Arm swing animations every 10 ticks
+  - Mining progress logging
+- **Enhanced Logging**: Emoji-enhanced status messages for better readability (🎮, ⛏️, 👋, ❤️, etc.)
+- **Chat Commands** (case-insensitive):
   - `!me` - Move to the player who issued the command and look at them
   - `!mine` - Pick up thrown items and use them to mine blocks (sends "IT BROKEEEEE" when tool breaks)
   - `!stop` - Gracefully disconnect from the server
+- **Durability Tracking**: Items lose 5 durability every 40 ticks of mining
 
 ## Configuration
 
@@ -20,7 +25,7 @@ The bot connects to the server with the following default settings (can be modif
 ## Prerequisites
 
 - Go 1.24 or higher
-- Access to a Minecraft server (Java Edition, compatible with protocol version 764)
+- Access to a Minecraft server (Java Edition 1.21.10 or compatible)
 
 ## Building
 
