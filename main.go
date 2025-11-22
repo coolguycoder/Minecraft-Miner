@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	version    = "1.21.10" // Minecraft Java Edition version
-	serverAddr = "100.94.216.120:25565"
-	username   = "MINER"
+	version         = "1.21.10"              // Minecraft Java Edition version
+	protocolVersion = 768                    // Protocol version for Minecraft 1.21.10 (1.21.2-1.21.4 use 768)
+	serverAddr      = "100.94.216.120:25565"
+	username        = "MINER"
 
 	// Timing constants
 	worldLoadDelay  = 2 * time.Second        // Wait time for world to load after joining
@@ -53,7 +54,7 @@ var (
 
 func main() {
 	log.Println("🤖 Starting Minecraft Bot...")
-	log.Printf("📦 Minecraft Java Edition version: %s", version)
+	log.Printf("📦 Minecraft Java Edition version: %s (Protocol %d)", version, protocolVersion)
 
 	// Create client
 	client = bot.NewClient()
@@ -101,7 +102,7 @@ func main() {
 	}()
 
 	// Join server
-	log.Printf("Connecting to server %s as %s (Minecraft Java Edition %s)...", serverAddr, username, version)
+	log.Printf("Connecting to server %s as %s (Minecraft Java Edition %s, Protocol %d)...", serverAddr, username, version, protocolVersion)
 	err := client.JoinServer(serverAddr)
 	if err != nil {
 		log.Fatalf("❌ Failed to join server: %v", err)
