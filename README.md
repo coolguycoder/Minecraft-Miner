@@ -30,7 +30,7 @@ The bot connects to the server with the following default settings (can be modif
 - Access to a Minecraft server (Java Edition 1.21.10 or compatible)
 - Git (for cloning the go-mc library locally if protocol fix is needed)
 
-## Protocol Version Fix (Minecraft 1.21.10)
+## Protocol Version Fix (Minecraft 1.21.10+)
 
 If you encounter the error "Incompatible client! Please use 1.21.10", you need to fix the protocol version mismatch. This happens because the upstream `go-mc` library hardcodes a protocol version that may not match your server's expected version.
 
@@ -38,7 +38,7 @@ If you encounter the error "Incompatible client! Please use 1.21.10", you need t
 
 The upstream go-mc library is not yet updated to support Minecraft 1.21.10's specific protocol version. Until upstream support lands, we use this script to automatically detect and patch the correct protocol version locally.
 
-### Usage
+### Basic Usage
 
 **Initial run** (automatically detects the correct protocol version):
 ```bash
@@ -48,6 +48,16 @@ The upstream go-mc library is not yet updated to support Minecraft 1.21.10's spe
 **Force re-run** (redo tests even if a protocol version was previously found):
 ```bash
 ./fix-protocol.sh --force
+```
+
+**Verbose mode** (show detailed output during testing):
+```bash
+./fix-protocol.sh --verbose
+```
+
+**Custom protocol range** (test specific protocol versions):
+```bash
+./fix-protocol.sh --range 760-800
 ```
 
 **Clean reset** (remove all local modifications and start fresh):
@@ -62,23 +72,107 @@ cat .protocol-version
 
 ### What The Script Does
 
-1. Performs sanity checks (verifies Go is installed and main.go exists)
-2. Clones the go-mc library locally to `./go-mc-local` (if not already present)
-3. Tests multiple protocol versions (768, 769, 770, 771, 766) automatically
-4. For each version:
+1. **Pings the server** to automatically discover the protocol version
+2. Performs sanity checks (verifies Go is installed and main.go exists)
+3. Clones the go-mc library locally to `./go-mc-local` (if not already present)
+4. Generates a smart list of protocol candidates based on server ping
+5. For each protocol version:
    - Patches the `ProtocolVersion` constant in `go-mc-local/bot/mcbot.go`
    - Updates `go.mod` with a replace directive (idempotent)
    - Runs `go mod tidy`
    - Builds the bot binary
-   - Tests connection to the server
-5. Saves the working protocol version to `.protocol-version`
-6. Creates a backup of your original `go.mod` at `go.mod.backup`
+   - Tests connection to the server with improved success detection
+6. Saves the working protocol version to `.protocol-version`
+7. Tracks attempted protocols in `.protocol-attempts` for resume capability
 
 The script is idempotent and safe to run multiple times.
 
-### Future TODO
+## Modded Server Support (Fabric & Forge)
 
-When the upstream go-mc library officially supports Minecraft 1.21.10, this script and the local modifications can be removed. Monitor the [go-mc repository](https://github.com/Tnze/go-mc) for updates.
+The script now includes automatic detection and support for modded Minecraft servers.
+
+### Server Types
+
+- **Vanilla**: Standard Minecraft server - full support
+- **Fabric**: Lightweight modding framework - usually uses vanilla protocol, **full support**
+- **Forge**: Advanced modding framework - requires FML handshake, **limited support**
+
+### How It Works
+
+The script automatically detects modded servers by:
+- Pinging the server and analyzing the version name and MOTD
+- Looking for keywords like "fabric", "forge", or "FML"
+- Adjusting connection strategy accordingly
+
+### Usage for Modded Servers
+
+**Auto-detect modded server type:**
+```bash
+./fix-protocol.sh
+```
+
+**Force Fabric mode:**
+```bash
+./fix-protocol.sh --fabric
+```
+
+**Force Forge mode (experimental):**
+```bash
+./fix-protocol.sh --forge
+```
+
+**View server information:**
+```bash
+go run tools/ping-status.go 100.94.216.120:25565
+```
+
+### Forge Server Limitations
+
+⚠️ **Important**: Full Forge (FML2) handshake is **not yet implemented**. Forge servers may:
+- Reject connections after initial handshake
+- Require additional negotiation packets
+- Have incompatible mod requirements
+
+For Forge servers, the script will:
+1. Detect the Forge server automatically
+2. Print a warning about limited support
+3. Attempt basic connection (may work for some Forge servers)
+
+### Troubleshooting Modded Servers
+
+If connection fails on a modded server:
+
+1. **Check server type:**
+   ```bash
+   go run tools/ping-status.go <server-address:port>
+   ```
+
+2. **Try verbose mode:**
+   ```bash
+   ./fix-protocol.sh --verbose
+   ```
+
+3. **Try wider protocol range:**
+   ```bash
+   ./fix-protocol.sh --range 760-800
+   ```
+
+4. **For Fabric servers:** Should work like vanilla - report issues if they don't
+5. **For Forge servers:** Advanced FML handshake not implemented yet (see Future Work below)
+
+### Future Work
+
+Planned improvements for modded server support:
+
+- [ ] **Implement Real Forge Handshake (FML2 sequence)**
+  - Mod list negotiation
+  - Registry synchronization
+  - Configuration channel support
+- [ ] **Multi-version compatibility matrix caching**
+- [ ] **Automatic upstream version check**
+- [ ] **Per-mod compatibility detection**
+
+When the upstream go-mc library officially supports Minecraft 1.21.10 and modded servers, this script and the local modifications can be removed. Monitor the [go-mc repository](https://github.com/Tnze/go-mc) for updates.
 
 ## Version Compatibility
 
