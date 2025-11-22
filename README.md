@@ -21,11 +21,23 @@ A Minecraft bot written in Go that can connect to a Minecraft Java Edition 1.21.
 The bot connects to the server with the following default settings (can be modified in `main.go`):
 - **Server**: `100.94.216.120:25565`
 - **Username**: `MINER`
+- **Version**: Minecraft Java Edition 1.21.10
+- **Protocol Version**: 768 (compatible with Minecraft 1.21.2-1.21.4)
 
 ## Prerequisites
 
 - Go 1.24 or higher
 - Access to a Minecraft server (Java Edition 1.21.10 or compatible)
+
+## Version Compatibility
+
+This bot uses **protocol version 768** to connect to Minecraft servers. This protocol version is compatible with:
+- Minecraft 1.21.2
+- Minecraft 1.21.3
+- Minecraft 1.21.4
+- Minecraft 1.21.10 (tested)
+
+If you need to connect to a different Minecraft version, you may need to update the protocol version in `go-mc-local/bot/mcbot.go`.
 
 ## Building
 
@@ -84,13 +96,41 @@ The bot is structured as follows:
 
 - The `!me` command requires tracking other players' positions (partially implemented)
 - The `!mine` command requires item pickup tracking and durability monitoring (framework in place)
-- The bot uses the go-mc library which implements the Minecraft protocol
+- The bot uses a modified version of the go-mc library (vendored in `go-mc-local/`)
 - Graceful shutdown is handled via `!stop` command or SIGINT/SIGTERM signals
+
+## Troubleshooting
+
+### "Incompatible client" Error
+
+If you see an error like:
+```
+❌ Failed to join server: bot: login error: [disconnect] disconnect because: Incompatible client! Please use X.XX.XX
+```
+
+This means the server is running a different Minecraft version that requires a different protocol version. To fix:
+
+1. Determine the correct protocol version for your Minecraft version (check [wiki.vg/Protocol_version_numbers](https://wiki.vg/Protocol_version_numbers))
+2. Update the protocol version in `go-mc-local/bot/mcbot.go`:
+   ```go
+   const (
+       ProtocolVersion = XXX // Update this number
+       DefaultPort     = mcnet.DefaultPort
+   )
+   ```
+3. Update the `protocolVersion` constant in `main.go` to match
+4. Rebuild: `go build`
+
+### Connection Issues
+
+- Ensure the server IP and port are correct in `main.go`
+- Verify the server is running and accessible
+- Check that the server allows offline mode connections (or configure authentication)
 
 ## Logging
 
 The bot logs all activities to stdout, including:
-- Connection status
+- Connection status (with protocol version information)
 - Game events
 - Chat messages received
 - Command execution
